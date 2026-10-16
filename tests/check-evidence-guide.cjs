@@ -1,0 +1,12 @@
+const assert=require('node:assert/strict');const {makeFixture}=require('./fixture-v20.cjs');const f=makeFixture();let n=0;const t=(name,fn)=>{fn();n++;console.log('PASS',name)};
+f.run(`const raw={current:{time:'2026-10-14T18:00',relative_humidity_2m:110,cloud_cover:-5,wind_gusts_10m:-1,wind_direction_10m:400,surface_pressure:0,temperature_2m:24},current_units:{temperature_2m:'°C'},hourly:{time:['2026-10-14T18:00'],relative_humidity_2m:[null],wind_gusts_10m:[12],precipitation:['0']},hourly_units:{wind_gusts_10m:'km/h'}};const clean=v26ValidateWeather(raw);`);
+t('Invalid percentages, negative wind and bad directions become missing',()=>{for(const k of ['relative_humidity_2m','cloud_cover','wind_gusts_10m','wind_direction_10m','surface_pressure'])assert.equal(f.run(`clean.current.${k}`),null)});
+t('Unit mismatch is never displayed as m/s',()=>assert.equal(f.run('clean.hourly.wind_gusts_10m[0]'),null));
+t('String zero is not numeric rainfall',()=>assert.equal(f.run('clean.hourly.precipitation[0]'),null));
+t('Validation leaves original response untouched',()=>assert.equal(f.run('raw.current.relative_humidity_2m'),110));
+t('Bad hourly dates reject the response',()=>assert.throws(()=>f.run("v26ValidateWeather({current:{},hourly:{time:['<img>']}})")));
+t('Malformed optional daily data is omitted',()=>assert.equal(f.run("v26ValidateWeather({current:{},hourly:{time:[]},daily:{time:['invalid']}}).daily"),undefined));
+t('Typhoon guide never pretends to issue a live warning',()=>{const h=f.run('v26TyphoonGuide()');assert.match(h,/不表示当前发布/);assert.match(h,/当前官方预警状态未自动取得/)});
+t('Rain reference links to verified Luohu source',()=>assert.match(f.run('V18RAIN_THRESHOLD_SOURCE'),/post_12722512/));
+t('Disaster and weather explanations keep original role',()=>{for(const r of ['user','maintainer']){f.run(`V3.role='${r}';v25Disasters();v26WeatherGuide()`);assert.equal(f.run('V3.role'),r);assert.match(f.elements['#source-dialog'].innerHTML,/小时雨量累计前一小时/)} });
+console.log('CHECKS',n,'Source semantics and input validation; no real-browser check.');
